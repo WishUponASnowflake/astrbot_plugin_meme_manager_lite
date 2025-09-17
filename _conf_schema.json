@@ -1,0 +1,7 @@
+{
+  "max_memes_per_message": {
+    "description": "单次对话最多可使用多少张图片",
+    "type": "int",
+    "default": 1
+  }
+}
