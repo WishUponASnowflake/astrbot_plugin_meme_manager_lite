@@ -1,7 +1,14 @@
 {
-  "max_memes_per_message": {
-    "description": "单次对话最多可使用多少张图片",
-    "type": "int",
-    "default": 1
-  }
+    "max_stickers_per_message": {
+        "description": "每条消息最多使用的贴纸数量",
+        "type": "int",
+        "hint": "设置每条消息中最多可以使用的贴纸数量，建议设置为1-3之间",
+        "default": 1
+    },
+    "sticker_score_threshold": {
+        "description": "贴纸分数阈值",
+        "type": "float",
+        "hint": "只有达到或超过此阈值的贴纸才会被显示给用户。值为0到1之间，1表示非常合适，0表示完全不合适",
+        "default": 0.8
+    }
 }

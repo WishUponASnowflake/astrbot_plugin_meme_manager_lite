@@ -1,5 +1,5 @@
 name: astrbot_plugin_meme_manager_lite
 desc: 允许LLM在回答中使用表情包 轻量级！
-version: v1.0
+version: v1.1
 author: ctrlkk
 repo: https://github.com/ctrlkk/astrbot_plugin_meme_manager_lite
