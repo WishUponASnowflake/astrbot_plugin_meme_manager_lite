@@ -57,19 +57,14 @@ class StickerManagerLitePlugin(Star):
                 )
                 if os.path.exists(default_config_path):
                     shutil.copy2(default_config_path, self.STICKERS_DATA_FILE)
-                    logger.info(
-                        f"已从默认配置复制贴纸数据文件到 {self.STICKERS_DATA_FILE}"
-                    )
                 else:
-                    logger.error("默认配置文件也不存在，创建空配置文件")
+                    logger.error("默认配置文件不存在，创建空配置文件")
                     # 创建空的配置文件
                     with open(self.STICKERS_DATA_FILE, "w", encoding="utf-8") as f:
                         json.dump({}, f, ensure_ascii=False, indent=2)
 
             if not os.path.exists(self.STICKERS_DIR):
-                default_stickers_dir = os.path.join(
-                    self.PLUGIN_DIR, "default", "memes"
-                )
+                default_stickers_dir = os.path.join(self.PLUGIN_DIR, "default", "memes")
                 if os.path.exists(default_stickers_dir):
                     os.makedirs(self.STICKERS_DIR, exist_ok=True)
                     for sticker_name in os.listdir(default_stickers_dir):
@@ -84,11 +79,8 @@ class StickerManagerLitePlugin(Star):
                             target_sticker_dir
                         ):
                             shutil.copytree(default_sticker_dir, target_sticker_dir)
-                            logger.info(
-                                f"已从默认配置复制贴纸目录 {sticker_name} 到 {target_sticker_dir}"
-                            )
                 else:
-                    logger.error("默认贴纸目录也不存在")
+                    logger.error("默认贴纸目录不存在")
 
         except Exception as e:
             logger.error(f"初始化默认配置失败: {e}")
