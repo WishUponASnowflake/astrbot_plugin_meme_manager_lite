@@ -31,8 +31,8 @@ class StickerManagerLitePlugin(Star):
 
         self.PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
         self.DATA_DIR = os.path.normpath(StarTools.get_data_dir())
-        self.STICKERS_DIR = os.path.join(self.DATA_DIR, "stickers")
-        self.STICKERS_DATA_FILE = os.path.join(self.DATA_DIR, "stickers_data.json")
+        self.STICKERS_DIR = os.path.join(self.DATA_DIR, "memes")
+        self.STICKERS_DATA_FILE = os.path.join(self.DATA_DIR, "memes_data.json")
         # 贴纸名称到描述的映射
         self.stickers_data: Dict[str, str] = {}
 
@@ -53,7 +53,7 @@ class StickerManagerLitePlugin(Star):
 
             if not os.path.exists(self.STICKERS_DATA_FILE):
                 default_config_path = os.path.join(
-                    self.PLUGIN_DIR, "default", "stickers_data.json"
+                    self.PLUGIN_DIR, "default", "memes_data.json"
                 )
                 if os.path.exists(default_config_path):
                     shutil.copy2(default_config_path, self.STICKERS_DATA_FILE)
@@ -68,7 +68,7 @@ class StickerManagerLitePlugin(Star):
 
             if not os.path.exists(self.STICKERS_DIR):
                 default_stickers_dir = os.path.join(
-                    self.PLUGIN_DIR, "default", "stickers"
+                    self.PLUGIN_DIR, "default", "memes"
                 )
                 if os.path.exists(default_stickers_dir):
                     os.makedirs(self.STICKERS_DIR, exist_ok=True)
