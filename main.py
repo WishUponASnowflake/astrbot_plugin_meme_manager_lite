@@ -1,11 +1,11 @@
 import os
 import json
-import re
 import base64
 import mimetypes
 import aiofiles
 import random
 import shutil
+from lxml import etree
 from typing import Dict, Optional, List
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
@@ -141,24 +141,45 @@ class StickerManagerLitePlugin(Star):
 
     def _parse_sticker_tags(self, text: str) -> List[Dict[str, any]]:
         """解析文本中的贴纸标签，包含名称和分数"""
-        pattern = r'<sticker\s+name="([^"]+)"\s+score="([^"]+)"/>'
-        matches = re.findall(pattern, text)
         result = []
-        for name, score_str in matches:
-            try:
-                score = float(score_str)
-                # 确保分数在0-1范围内
-                score = max(0.0, min(1.0, score))
-                result.append({"name": name, "score": score})
-            except ValueError:
-                # 如果分数无法解析，使用默认分数0.5
-                result.append({"name": name, "score": 0.5})
+        try:
+            wrapper = f"<root>{text}</root>"
+            root = etree.fromstring(wrapper)
+
+            for sticker in root.findall(".//sticker"):
+                name = sticker.get("name", "")
+                score_str = sticker.get("score", "0.5")
+
+                try:
+                    score = float(score_str)
+                    # 确保分数在0-1范围内
+                    score = max(0.0, min(1.0, score))
+                    result.append({"name": name, "score": score})
+                except ValueError:
+                    # 如果分数无法解析，使用默认分数0.5
+                    result.append({"name": name, "score": 0.5})
+        except Exception as e:
+            logger.error(f"[贴纸标签解析错误] {e}")
         return result
 
     def _remove_sticker_tags(self, text: str) -> str:
         """移除文本中的贴纸标签"""
-        pattern = r'<sticker\s+name="[^"]+"\s+score="[^"]+"/>'
-        return re.sub(pattern, "", text).strip()
+        try:
+            wrapper = f"<root>{text}</root>"
+            root = etree.fromstring(wrapper)
+
+            for sticker in root.findall(".//sticker"):
+                parent = root if sticker == root else sticker.getparent()
+                if parent is not None:
+                    parent.remove(sticker)
+
+            result = etree.tostring(root, encoding="unicode")
+            if result.startswith("<root>") and result.endswith("</root>"):
+                result = result[6:-7]
+            return result.strip()
+        except Exception as e:
+            logger.error(f"[贴纸标签移除错误] {e}")
+            return text
 
     def _generate_sticker_list(self) -> str:
         """生成贴纸清单"""
