@@ -2,10 +2,10 @@ import os
 import json
 import base64
 import mimetypes
+import re
 import aiofiles
 import random
 import shutil
-from lxml import etree
 from typing import Dict, Optional, List
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
@@ -141,45 +141,24 @@ class StickerManagerLitePlugin(Star):
 
     def _parse_sticker_tags(self, text: str) -> List[Dict[str, any]]:
         """解析文本中的贴纸标签，包含名称和分数"""
+        pattern = r'<sticker\s+name="([^"]+)"\s+score="([^"]+)"/>'
+        matches = re.findall(pattern, text)
         result = []
-        try:
-            wrapper = f"<root>{text}</root>"
-            root = etree.fromstring(wrapper)
-
-            for sticker in root.findall(".//sticker"):
-                name = sticker.get("name", "")
-                score_str = sticker.get("score", "0.5")
-
-                try:
-                    score = float(score_str)
-                    # 确保分数在0-1范围内
-                    score = max(0.0, min(1.0, score))
-                    result.append({"name": name, "score": score})
-                except ValueError:
-                    # 如果分数无法解析，使用默认分数0.5
-                    result.append({"name": name, "score": 0.5})
-        except Exception as e:
-            logger.error(f"[贴纸标签解析错误] {e}")
+        for name, score_str in matches:
+            try:
+                score = float(score_str)
+                # 确保分数在0-1范围内
+                score = max(0.0, min(1.0, score))
+                result.append({"name": name, "score": score})
+            except ValueError:
+                # 如果分数无法解析，使用默认分数0.5
+                result.append({"name": name, "score": 0.5})
         return result
 
     def _remove_sticker_tags(self, text: str) -> str:
         """移除文本中的贴纸标签"""
-        try:
-            wrapper = f"<root>{text}</root>"
-            root = etree.fromstring(wrapper)
-
-            for sticker in root.findall(".//sticker"):
-                parent = root if sticker == root else sticker.getparent()
-                if parent is not None:
-                    parent.remove(sticker)
-
-            result = etree.tostring(root, encoding="unicode")
-            if result.startswith("<root>") and result.endswith("</root>"):
-                result = result[6:-7]
-            return result.strip()
-        except Exception as e:
-            logger.error(f"[贴纸标签移除错误] {e}")
-            return text
+        pattern = r'<sticker\s+name="[^"]+"\s+score="[^"]+"/>'
+        return re.sub(pattern, "", text).strip()
 
     def _generate_sticker_list(self) -> str:
         """生成贴纸清单"""
@@ -203,10 +182,9 @@ class StickerManagerLitePlugin(Star):
 2. 当你需要使用贴纸时，请在回答中插入如下 XML 标签：
    <sticker name="贴纸名字" score="分数"/>
    其中"分数"是一个0到1之间的数值，表示该贴纸在当前回答中的合适度，1表示非常合适，0表示完全不合适。
-3. 只有分数达到或超过阈值 {self.sticker_score_threshold} 的贴纸才会被显示给用户。
-4. 你可以在回答中插入 0 个或多个 <sticker> 标签，但每条消息最多使用 {self.max_stickers_per_message} 个贴纸。
-5. 回答应保持自然流畅，贴纸是辅助，不要过度使用。
-6. 请根据贴纸描述和回答内容的匹配度、情感一致性等因素来评估分数。
+3. 你可以在回答中插入 0 个或多个 <sticker> 标签，但每条消息最多使用 {self.max_stickers_per_message} 个贴纸。
+4. 回答应保持自然流畅，贴纸是辅助，不要过度使用。
+5. 请根据贴纸描述和回答内容的匹配度、情感一致性等因素来评估分数。
 
 示例：
 （假设清单为：
