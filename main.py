@@ -10,7 +10,7 @@ from typing import Dict, Optional, List
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
-from astrbot.core.message.components import Image
+from astrbot.core.message.components import Image, Plain
 from astrbot.core.message.message_event_result import MessageChain
 from astrbot.core.provider.entities import LLMResponse, ProviderRequest
 from astrbot.core.star.star_tools import StarTools
@@ -202,40 +202,59 @@ class StickerManagerLitePlugin(Star):
 """
         req.system_prompt += f"\n\n{instruction_prompt}"
 
+    def _parse_sticker(self, completion_text: str):
+        sticker_tags = self._parse_sticker_tags(completion_text)
+        sticker_image_paths = []
+        if sticker_tags:
+            qualified_stickers = []
+            for sticker_info in sticker_tags:
+                sticker_name = sticker_info["name"]
+                score = sticker_info["score"]
+
+                # 检查分数是否达到阈值
+                if score >= self.sticker_score_threshold:
+                    qualified_stickers.append((sticker_name, score))
+
+            # 获取贴纸图片路径，限制数量
+            for sticker_name, score in qualified_stickers[
+                : self.max_stickers_per_message
+            ]:
+                image_path = self._get_sticker_image_path(sticker_name)
+                if image_path:
+                    sticker_image_paths.append(image_path)
+                else:
+                    logger.warning(f"找不到贴纸图片: {sticker_name}")
+        return sticker_image_paths
+
     @filter.on_llm_response()
     async def on_llm_resp(self, event: AstrMessageEvent, resp: LLMResponse):
         """处理 LLM 响应，解析贴纸标签并根据分数筛选"""
-        sticker_image_paths = []
-        if resp.completion_text:
-            sticker_tags = self._parse_sticker_tags(resp.completion_text)
-
-            if sticker_tags:
-                resp.completion_text = self._remove_sticker_tags(resp.completion_text)
-
-                qualified_stickers = []
-                for sticker_info in sticker_tags:
-                    sticker_name = sticker_info["name"]
-                    score = sticker_info["score"]
-
-                    # 检查分数是否达到阈值
-                    if score >= self.sticker_score_threshold:
-                        qualified_stickers.append((sticker_name, score))
-
-                # 获取贴纸图片路径，限制数量
-                for sticker_name, score in qualified_stickers[
-                    : self.max_stickers_per_message
-                ]:
-                    image_path = self._get_sticker_image_path(sticker_name)
-                    if image_path:
-                        sticker_image_paths.append(image_path)
-                    else:
-                        logger.warning(f"找不到贴纸图片: {sticker_name}")
-
-        event.set_extra("sticker_image_paths", sticker_image_paths)
+        # sticker_image_paths = []
+        # if resp.completion_text:
+            # sticker_image_paths = self._parse_sticker(resp.completion_text)
+            # resp.completion_text = self._remove_sticker_tags(resp.completion_text)
+        # event.set_extra("sticker_image_paths", sticker_image_paths)
 
     @filter.on_decorating_result()
     async def on_decorating_result(self, event: AstrMessageEvent):
-        pass
+        """"""
+        result = event.get_result()
+        chain = result.chain
+        new_chain = []
+        for item in chain:
+            if isinstance(item, Plain):
+                text = item.text
+                # 处理文本中的数据
+                sticker_image_paths = self._parse_sticker(item.text)
+                for image_path in sticker_image_paths:
+                    new_chain.append(Image(image_path))
+                cleaned_text = self._remove_sticker_tags(text).strip()
+                if cleaned_text:
+                    new_chain.append(Plain(cleaned_text))
+            else:
+                new_chain.append(item)
+
+        result.chain = new_chain
 
     @filter.after_message_sent()
     async def after_message_sent(self, event: AstrMessageEvent):
