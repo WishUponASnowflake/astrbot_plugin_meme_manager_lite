@@ -231,8 +231,8 @@ class StickerManagerLitePlugin(Star):
         """处理 LLM 响应，解析贴纸标签并根据分数筛选"""
         # sticker_image_paths = []
         # if resp.completion_text:
-            # sticker_image_paths = self._parse_sticker(resp.completion_text)
-            # resp.completion_text = self._remove_sticker_tags(resp.completion_text)
+        # sticker_image_paths = self._parse_sticker(resp.completion_text)
+        # resp.completion_text = self._remove_sticker_tags(resp.completion_text)
         # event.set_extra("sticker_image_paths", sticker_image_paths)
 
     @filter.on_decorating_result()
@@ -243,18 +243,64 @@ class StickerManagerLitePlugin(Star):
         new_chain = []
         for item in chain:
             if isinstance(item, Plain):
-                text = item.text
-                # 处理文本中的数据
-                sticker_image_paths = self._parse_sticker(item.text)
-                for image_path in sticker_image_paths:
-                    new_chain.append(Image(image_path))
-                cleaned_text = self._remove_sticker_tags(text).strip()
-                if cleaned_text:
-                    new_chain.append(Plain(cleaned_text))
+                components = await self._process_text_with_sticker(item.text)
+                new_chain.extend(components)
             else:
                 new_chain.append(item)
 
         result.chain = new_chain
+
+    async def _process_text_with_sticker(self, text: str):
+        """处理包含sticker标签的文本，将其拆分成Plain、Image、Plain的格式"""
+        components = []
+
+        try:
+            # 文本切割
+            pattern = r"(<sticker.*?/>)"
+            parts = re.split(pattern, text, flags=re.DOTALL)
+
+            for part in parts:
+                part = part.strip()
+                if not part:
+                    continue
+
+                if re.match(r"<sticker.*?/>", part):
+                    sticker_name = None
+                    score = 0.5
+
+                    # 尝试提取name属性
+                    name_pattern = r'name="(.*?)"'
+                    name_match = re.search(name_pattern, part)
+                    if name_match:
+                        sticker_name = name_match.group(1)
+
+                    # 尝试提取score属性
+                    score_pattern = r'score="(.*?)"'
+                    score_match = re.search(score_pattern, part)
+                    if score_match:
+                        try:
+                            score_str = score_match.group(1)
+                            score = float(score_str)
+                            # 确保分数在0-1范围内
+                            score = max(0.0, min(1.0, score))
+                        except ValueError:
+                            score = 0.5
+
+                    # 如果找到了sticker名称
+                    if sticker_name:
+                        if score >= self.sticker_score_threshold:
+                            image_path = self._get_sticker_image_path(sticker_name)
+                            if image_path:
+                                components.append(Image(image_path))
+                else:
+                    components.append(Plain(part))
+
+        except Exception as e:
+            logger.error(f"处理文本和sticker标签时出错: {e}")
+            if text.strip():
+                components.append(Plain(text.strip()))
+
+        return components
 
     @filter.after_message_sent()
     async def after_message_sent(self, event: AstrMessageEvent):
