@@ -291,7 +291,7 @@ class StickerManagerLitePlugin(Star):
                         if score >= self.sticker_score_threshold:
                             image_path = self._get_sticker_image_path(sticker_name)
                             if image_path:
-                                components.append(Image(image_path))
+                                components.append(Image.fromFileSystem(image_path))
                 else:
                     components.append(Plain(part))
 
