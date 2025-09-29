@@ -11,7 +11,6 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 from astrbot.core.message.components import Image, Plain
-from astrbot.core.message.message_event_result import MessageChain
 from astrbot.core.provider.entities import LLMResponse, ProviderRequest
 from astrbot.core.star.star_tools import StarTools
 
@@ -27,7 +26,6 @@ class StickerManagerLitePlugin(Star):
         super().__init__(context)
         self.config = context.get_config()
         self.max_stickers_per_message = self.config.get("max_stickers_per_message", 1)
-        self.sticker_score_threshold = self.config.get("sticker_score_threshold", 0.8)
 
         self.PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
         self.DATA_DIR = os.path.normpath(StarTools.get_data_dir())
@@ -157,7 +155,7 @@ class StickerManagerLitePlugin(Star):
 
     def _remove_sticker_tags(self, text: str) -> str:
         """移除文本中的贴纸标签"""
-        pattern = r'<sticker\s+name="[^"]+"\s+score="[^"]+"/>'
+        pattern = r"<sticker\s*[^>]*\/>"
         return re.sub(pattern, "", text).strip()
 
     def _generate_sticker_list(self) -> str:
@@ -174,70 +172,31 @@ class StickerManagerLitePlugin(Star):
         instruction_prompt = f"""
 在回答用户问题时，你可以在自然语言的基础上，使用贴纸来增强表达效果。
 
-「贴纸清单」：
-{sticker_list}
-
 使用规则：
 1. 你只能使用清单中提供的贴纸名字。
 2. 当你需要使用贴纸时，请在回答中插入如下 XML 标签：
-   <sticker name="贴纸名字" score="分数"/>
-   其中"分数"是一个0到1之间的数值，表示该贴纸在当前回答中的合适度，1表示非常合适，0表示完全不合适。
+   <sticker name="贴纸名字"/>
 3. 你可以在回答中插入 0 个或多个 <sticker> 标签，但每条消息最多使用 {self.max_stickers_per_message} 个贴纸。
 4. 回答应保持自然流畅，贴纸是辅助，不要过度使用。
-5. 请根据贴纸描述和回答内容的匹配度、情感一致性等因素来评估分数。
+5. 请根据上下文选择合适的贴纸，每条消息中贴纸标签使用概率控制在 10% 以内。
 
-示例：
-（假设清单为：
-- [smile]：开心、大笑
-- [sad]：伤心、需要安慰
-- [ok]：同意、没问题
-）
-
-- 用户说了一个好消息 → 输出：
-  "太棒了！<sticker name="smile" score="0.9"/>"
-- 用户说了坏消息 → 输出：
-  "别灰心，我们一起想办法。<sticker name="sad" score="0.8"/>"
-- 用户请求确认 → 输出：
-  "好的，没问题。<sticker name="ok" score="0.7"/>"
+「贴纸清单」：
+{sticker_list}
 """
         req.system_prompt += f"\n\n{instruction_prompt}"
-
-    def _parse_sticker(self, completion_text: str):
-        sticker_tags = self._parse_sticker_tags(completion_text)
-        sticker_image_paths = []
-        if sticker_tags:
-            qualified_stickers = []
-            for sticker_info in sticker_tags:
-                sticker_name = sticker_info["name"]
-                score = sticker_info["score"]
-
-                # 检查分数是否达到阈值
-                if score >= self.sticker_score_threshold:
-                    qualified_stickers.append((sticker_name, score))
-
-            # 获取贴纸图片路径，限制数量
-            for sticker_name, score in qualified_stickers[
-                : self.max_stickers_per_message
-            ]:
-                image_path = self._get_sticker_image_path(sticker_name)
-                if image_path:
-                    sticker_image_paths.append(image_path)
-                else:
-                    logger.warning(f"找不到贴纸图片: {sticker_name}")
-        return sticker_image_paths
 
     @filter.on_llm_response()
     async def on_llm_resp(self, event: AstrMessageEvent, resp: LLMResponse):
         """处理 LLM 响应，解析贴纸标签并根据分数筛选"""
-        # sticker_image_paths = []
-        # if resp.completion_text:
-        # sticker_image_paths = self._parse_sticker(resp.completion_text)
-        # resp.completion_text = self._remove_sticker_tags(resp.completion_text)
-        # event.set_extra("sticker_image_paths", sticker_image_paths)
+        event.set_extra("resp", resp)
 
     @filter.on_decorating_result()
     async def on_decorating_result(self, event: AstrMessageEvent):
-        """"""
+        """标签解析"""
+        # 清洗标签，降低副作用
+        resp = event.get_extra("resp")
+        if isinstance(resp, LLMResponse):
+            resp.completion_text = self._remove_sticker_tags(resp.completion_text)
         result = event.get_result()
         chain = result.chain
         new_chain = []
@@ -247,7 +206,6 @@ class StickerManagerLitePlugin(Star):
                 new_chain.extend(components)
             else:
                 new_chain.append(item)
-
         result.chain = new_chain
 
     async def _process_text_with_sticker(self, text: str):
@@ -266,7 +224,6 @@ class StickerManagerLitePlugin(Star):
 
                 if re.match(r"<sticker.*?/>", part):
                     sticker_name = None
-                    score = 0.5
 
                     # 尝试提取name属性
                     name_pattern = r'name="(.*?)"'
@@ -274,24 +231,11 @@ class StickerManagerLitePlugin(Star):
                     if name_match:
                         sticker_name = name_match.group(1)
 
-                    # 尝试提取score属性
-                    score_pattern = r'score="(.*?)"'
-                    score_match = re.search(score_pattern, part)
-                    if score_match:
-                        try:
-                            score_str = score_match.group(1)
-                            score = float(score_str)
-                            # 确保分数在0-1范围内
-                            score = max(0.0, min(1.0, score))
-                        except ValueError:
-                            score = 0.5
-
                     # 如果找到了sticker名称
                     if sticker_name:
-                        if score >= self.sticker_score_threshold:
-                            image_path = self._get_sticker_image_path(sticker_name)
-                            if image_path:
-                                components.append(Image.fromFileSystem(image_path))
+                        image_path = self._get_sticker_image_path(sticker_name)
+                        if image_path:
+                            components.append(Image.fromFileSystem(image_path))
                 else:
                     components.append(Plain(part))
 
@@ -304,10 +248,4 @@ class StickerManagerLitePlugin(Star):
 
     @filter.after_message_sent()
     async def after_message_sent(self, event: AstrMessageEvent):
-        sticker_image_paths = event.get_extra("sticker_image_paths") or []
-        for sticker_image_path in sticker_image_paths:
-            # sticker_dataurl = await self._image_to_data_url(sticker_image_path)
-            await self.context.send_message(
-                event.unified_msg_origin,
-                MessageChain([Image.fromFileSystem(sticker_image_path)]),
-            )
+        pass
