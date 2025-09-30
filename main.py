@@ -19,7 +19,7 @@ from astrbot.core.star.star_tools import StarTools
     "astrbot_plugin_meme_manager_lite",
     "ctrlkk",
     "允许LLM在回答中使用表情包 轻量级！",
-    "1.1",
+    "1.2",
 )
 class StickerManagerLitePlugin(Star):
     def __init__(self, context: Context):
