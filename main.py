@@ -19,13 +19,15 @@ from astrbot.core.star.star_tools import StarTools
     "astrbot_plugin_meme_manager_lite",
     "ctrlkk",
     "允许LLM在回答中使用表情包 轻量级！",
-    "1.2",
+    "1.3",
 )
 class StickerManagerLitePlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
         self.config = context.get_config()
         self.max_stickers_per_message = self.config.get("max_stickers_per_message", 1)
+        # 是否清洗标签，默认开启
+        self.clean_sticker_tags = self.config.get("clean_sticker_tags", True)
 
         self.PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
         self.DATA_DIR = os.path.normpath(StarTools.get_data_dir())
@@ -195,7 +197,7 @@ class StickerManagerLitePlugin(Star):
         """标签解析"""
         # 清洗标签，降低副作用
         resp = event.get_extra("resp")
-        if isinstance(resp, LLMResponse):
+        if isinstance(resp, LLMResponse) and self.clean_sticker_tags:
             resp.completion_text = self._remove_sticker_tags(resp.completion_text)
         result = event.get_result()
         chain = result.chain
