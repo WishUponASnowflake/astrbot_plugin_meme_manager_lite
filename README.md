@@ -51,7 +51,7 @@ git clone {插件仓库地址}
 
 1. **创建表情包目录**：
    ```
-   {AstrBot根目录}/data/plugins_data/meme_manager_lite_data/memes/{表情包名称}/
+   {AstrBot根目录}/data/plugin_data/meme_manager_lite_data/memes/{表情包名称}/
    ```
 
 2. **添加表情包图片**： 将表情包图片文件放入对应的表情包目录中
@@ -60,7 +60,7 @@ git clone {插件仓库地址}
 
 3. **编辑表情包数据文件**： 编辑或创建 `memes_data.json` 文件：
    ```
-   {AstrBot根目录}/data/plugins_data/meme_manager_lite_data/memes_data.json
+   {AstrBot根目录}/data/plugin_data/meme_manager_lite_data/memes_data.json
    ```
 
 4. **添加表情包描述**： 在 `memes_data.json` 中添加表情包描述，格式如下：
@@ -135,7 +135,7 @@ A: 请检查以下几点：
 
 ### Q: 如何备份我的自定义表情包？
 
-A: 备份整个 `data/plugins_data/meme_manager_lite_data/` 目录即可。
+A: 备份整个 `data/plugin_data/meme_manager_lite_data/` 目录即可。
 
 ## 许可证
 
